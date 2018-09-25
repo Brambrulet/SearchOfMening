@@ -25,7 +25,6 @@ public class SearchOfMening {
         wordTerminators.add(',');
     }
 
-    //    private final static int threadsQty = 4;
     private SearchSaveProc saveProc;
     private int searchMethod = 1;
 
@@ -54,16 +53,16 @@ public class SearchOfMening {
 
         long beginTime = System.currentTimeMillis();
         (saveProc = new SearchSaveProc(resultFileName)).start();
-        new TreadPool().add(Arrays.stream(sourceFiles).
-                map(path -> newTask(path)).toArray()).
-                start().
-                join();
-
+        new TreadPool().add(newTasks(sourceFiles)).start().join();
         saveTail();
 
         System.out.println("Found sentences: " + foundSentences + ".\r\nTime spent: " + (System.currentTimeMillis() - beginTime) + " msec.");
 
         clear();
+    }
+
+    private Runnable[] newTasks(String[] sourceFiles) {
+        return Arrays.stream(sourceFiles).map(this::newTask).toArray(Runnable[]::new);
     }
 
     private Runnable newTask(String fileUrl) {
@@ -159,6 +158,18 @@ public class SearchOfMening {
             this.fileName = fileName;
         }
 
+
+        protected void checkSentence(Object sentence) {
+            if (searchIntersection(searchWords, sentenceWords)) synchronized (searchResult) {
+                ++foundSentences;
+//                        System.out.println(foundSentences + " " + sentence);
+
+                searchResult.add(sentence instanceof String ? (String) sentence : sentence.toString());
+                searchResult.notifyAll();
+            }
+            sentenceWords.clear();
+        }
+
         protected boolean searchIntersection(Collection<String> first, Collection<String> second) {
             try {
                 //Ищем меньшее количество слов в большем - так быстрее
@@ -177,18 +188,6 @@ public class SearchOfMening {
                 e.printStackTrace();
             }
             return false;
-        }
-
-        protected void checkSentence(Object sentence) {
-            if (searchIntersection(searchWords, sentenceWords)) synchronized (searchResult) {
-                ++foundSentences;
-//                        System.out.println(foundSentences + " " + sentence);
-
-                searchResult.add(sentence instanceof String ? (String) sentence : sentence.toString());
-                searchResult.notifyAll();
-            }
-            sentenceWords.clear();
-
         }
     }
 
@@ -267,13 +266,13 @@ public class SearchOfMening {
                         while (length > 0 && wordTerminators.contains(word.charAt(length - 1))) {
                             --length;
                         }
+
                         word = (word.length() > length ?
                                 word.substring(0, length) :
                                 word).toLowerCase();
                         if (word.length() > 0) {
                             sentenceWords.add(word);
                         }
-
 
                         if (endOfSentence) {
                             checkSentence(sentence);
