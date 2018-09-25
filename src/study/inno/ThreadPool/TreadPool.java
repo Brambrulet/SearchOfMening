@@ -3,9 +3,10 @@ package study.inno.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 
 public class TreadPool {
-    private ArrayList<Slave> slaves = new ArrayList<>();
+    private List<Slave> slaves = new ArrayList<>();
     private LinkedList<Runnable> tasks = new LinkedList<>();
     private boolean inJob = false;
     private boolean stop = false;
@@ -79,7 +80,7 @@ public class TreadPool {
         }
     }
 
-    private Runnable pollTask() {
+    private synchronized Runnable pollTask() {
         if (inJob && !stop) {
             return tasks.poll();
         } else {

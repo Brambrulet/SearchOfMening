@@ -8,25 +8,13 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 public class SearchOfMening {
-    private Map<String, Boolean> searchWords = new HashMap<>();
+    private final static int threadsQty = 4;
     private SearchSaveProc saveProc;
     private LinkedList<String> searchResult = new LinkedList<>();
     private final static int linesToSave = 500;
     private int foundSentences;
     private long totalSentencesLength;
-
-    //Одним HashSet'ом для нескольких потоков пользоваться не получилось
-    //java.util.ConcurrentModificationException
-    //буду хранить по отдельному списку для каждого потока
-    private Map<String, Map<String, Boolean>> searchWordsByThreads = new TreeMap<>();
-
-    private synchronized Map<String, Boolean>  getSearchWords(String threadName) {
-        if (!searchWordsByThreads.containsKey(threadName)) {
-            searchWordsByThreads.put(threadName, (Map<String, Boolean> ) ((HashMap<String, Boolean>)searchWords).clone());
-        }
-
-        return searchWordsByThreads.get(threadName);
-    }
+    private Collection<String> searchWords = new HashSet<>();
 
     public void getOccurencies(String[] sourceFiles, String[] searchWords, String resultFileName) throws Exception {
         assignSearchWords(searchWords);
@@ -37,7 +25,7 @@ public class SearchOfMening {
 
         long beginTime = System.currentTimeMillis();
         (saveProc = new SearchSaveProc(resultFileName)).start();
-        new TreadPool(4).add(Arrays.stream(sourceFiles).
+        new TreadPool(threadsQty).add(Arrays.stream(sourceFiles).
                 map(path -> new SearchMeaningTask(path)).toArray()).
                 start().
                 join();
@@ -58,7 +46,7 @@ public class SearchOfMening {
                 word = word.trim().toLowerCase();
 
                 if (word.length() > 0) {
-                    this.searchWords.put(word, true);
+                    this.searchWords.add(word);
                 }
             }
         }
@@ -125,21 +113,15 @@ public class SearchOfMening {
 
     private class SearchMeaningTask implements Runnable {
         private String fileName;
-        private Map<String, Boolean> sentenceWords = new HashMap<>();
-        private Map<String, Boolean> searchWords;
+        private Collection<String> sentenceWords = new HashSet<>();
+        private boolean taskInJon = false;
 
         public SearchMeaningTask(String fileName) {
             this.fileName = fileName;
         }
 
-        public String getFileName() {
-            return fileName;
-        }
-
         @Override
         public void run() {
-            this.searchWords = (Map<String, Boolean>)getSearchWords(Thread.currentThread().getName());
-
             try (Scanner scanner = new Scanner(
                     new BufferedReader(
                             new InputStreamReader(
@@ -153,48 +135,35 @@ public class SearchOfMening {
                         totalSentencesLength += sentence.length();
                     }
 
-//                    if(true)continue;
-
                     sentenceWords.clear();
                     for (String word : sentence.split("[\\s,.?!…]+")) {
-                        sentenceWords.put(word.toLowerCase(), true);
+                        sentenceWords.add(word.toLowerCase());
                     }
 
-                    if (searchIntersection(this.searchWords, sentenceWords)) {
-                        synchronized (searchResult) {
-                            ++foundSentences;
-                            searchResult.add(sentence);
-                            searchResult.notifyAll();
-
-//                        System.out.println(sentence);
-                        }
+                    if (searchIntersection(searchWords, sentenceWords)) synchronized (searchResult) {
+                        ++foundSentences;
+                        searchResult.add(sentence);
+                        searchResult.notifyAll();
                     }
                 }
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-        private boolean searchIntersection(Map<String, Boolean>  first, Map<String, Boolean> second) {
-            //Ищем меньшее количество слов в большем - так быстрее
-//            if (second.size() < first.size()) {
-//                HashSet<String> tmp = first;
-//                first = second;
-//                second = tmp;
-//            }
-
+        private boolean searchIntersection(Collection<String> first, Collection<String> second) {
             try {
-                if (first.size() < second.size()) {
-                    for (String word : first.keySet()) {
-                        if (second.containsKey(word)) {
-                            return true;
-                        }
-                    }
-                } else {
-                    for (String word : second.keySet()) {
-                        if (first.containsKey(word)) {
-                            return true;
-                        }
+                //Ищем меньшее количество слов в большем - так быстрее
+                if (second.size() < first.size()) {
+                    Collection<String> tmp = first;
+                    first = second;
+                    second = tmp;
+                }
+
+                for (String word : first) {
+                    if (second.contains(word)) {
+                        return true;
                     }
                 }
             } catch (Exception e) {
