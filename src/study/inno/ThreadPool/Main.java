@@ -2,9 +2,7 @@ package study.inno.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.Stream;
 
 public class Main {
     private static SearchOfMening searchOfMening = new SearchOfMening();
@@ -13,11 +11,14 @@ public class Main {
     private static int filesQty;
 
     public static void main(String[] args) throws Exception {
-        searchOfMening.getOccurencies(getFiles(searchPath), getWords(), "SearchResult.txt");
+        for (int searchMethod = 0; searchMethod < 3; ++searchMethod) {
+            searchOfMening.setSearchMethod(searchMethod);
+            searchOfMening.getOccurencies(getFiles(searchPath), getSearchWords(), "SearchResult.txt");
 //        searchOfMening.getOccurencies(new String[]{"file:" + searchPath + "Delirium0.txt"}, getWords(), "SearchResult.txt");
+        }
     }
 
-    static String[] getWords() {
+    static String[] getSearchWords() {
         return new String[]{"мама", "мыла", "раму",
                 "сгущалась", "тьма", "над", "пунктом", "населённым",
                 "в", "густом", "саду", "коррупция", "цвела",
@@ -57,15 +58,17 @@ public class Main {
         filesQty = 0;
 
         String[] urls = Files.walk(Paths.get(searchPath), 1).
-                filter(Files::isRegularFile).
                 filter(path -> {
                     ++filesQty;
                     try {
-                        bytesTotal += Files.size(path);
+                        if (Files.isRegularFile(path)) {
+                            bytesTotal += Files.size(path);
+                            return true;
+                        }
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                    return true;
+                    return false;
                 })
                 .map(path -> "file:" + path).toArray(String[]::new);
 

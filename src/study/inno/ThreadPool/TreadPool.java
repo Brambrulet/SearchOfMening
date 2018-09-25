@@ -11,13 +11,10 @@ public class TreadPool {
     private boolean inJob = false;
     private boolean stop = false;
     private boolean joining = false;
-    private int maxThreads = 4;
-
-    public TreadPool(int maxThreads) {
-        this.maxThreads = maxThreads;
-    }
+    private int maxThreads;
 
     public TreadPool() {
+        maxThreads = Runtime.getRuntime().availableProcessors();
     }
 
     private class Slave extends Thread {
@@ -89,7 +86,9 @@ public class TreadPool {
     }
 
     public TreadPool start() throws Exception {
-        if (joining) {
+        if (inJob) {
+            throw new Exception("in process");
+        } else if (joining) {
             throw new Exception("joining in process");
         } else if (stop) {
             throw new Exception("stopping processes");
@@ -119,16 +118,8 @@ public class TreadPool {
             joining = true;
 
             while (inJob) {
-                Thread.currentThread().sleep(10);
+                Thread.currentThread().sleep(1);
             }
-
-//            for (Slave slave : slaves) {
-//                try {
-//                    slave.();
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-//            }
         }
         return this;
     }
